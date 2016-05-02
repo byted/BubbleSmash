@@ -35,16 +35,19 @@ while(True):
     ret, frame = cap.read()
 
     # Our operations on the frame come here
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    img = cv2.GaussianBlur(img,(5,5),0)
+    # ret, img = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    ret, img = cv2.threshold(img, 110, 255, cv2.THRESH_BINARY_INV)
 
     # this is really not pythonic. Need a better way
     for i in xrange(len(cs)):
-        cs[i].move(gray)
+        cs[i].move(img)
         if not cs[i].visible:
             cs[i] = Circle()
 
     # Display the resulting frame
-    cv2.imshow('frame', gray)
+    cv2.imshow('frame', img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
