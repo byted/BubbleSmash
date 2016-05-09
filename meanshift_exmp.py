@@ -3,16 +3,25 @@ import cv2
 
 cap = cv2.VideoCapture(0)
 
+cap_width = cap.get(3)
+cap_height = cap.get(4)
+
+roi_width = 110
+roi_height = 175
+
 # take first frame of the video
 ret,frame = cap.read()
 
 # setup initial location of window
-r,h,c,w = 0,175,0,110  # simply hardcoded the values
+r = int(cap_height / 2 - roi_height / 2)
+h = roi_height
+c = int(cap_width / 5) # not centered for right hand use
+w = roi_width
 track_window = (c,r,w,h)
 
 def startTracking(fr, r,h,c,w):
     roi = frame[r:r+h, c:c+w]
-    hs_r =  cv2.cvtColor(fr, cv2.COLOR_BGR2HSV)
+    hs_r =  cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     ma = cv2.inRange(hs_r, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
     r_h = cv2.calcHist([hs_r],[0],ma,[180],[0,180])
     cv2.normalize(r_h,r_h,0,255,cv2.NORM_MINMAX)
