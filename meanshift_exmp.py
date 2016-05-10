@@ -40,6 +40,7 @@ def startTracking(fr, r,h,c,w):
 term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 
 tracking = False
+roi_hist = None
 
 while(1):
     ret ,frame = cap.read()
@@ -48,29 +49,25 @@ while(1):
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
         # apply meanshift to get the new location
-        if not tracking:
-            if cv2.waitKey(1) & 0xFF == ord('s'):
-                tracking = True
-                roi_hist = startTracking(frame,r,h,c,w)
-        else:
+        if tracking:
             dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
             print "dst:",dst
             print "track_window:",track_window
             print "term_crit:",term_crit
             ret, track_window = cv2.meanShift(dst, track_window, term_crit)
 
-            # Draw it on image
+        # Draw it on image
         x,y,w,h = track_window
         img2 = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
-        if img2 is not None:
-            cv2.imshow('img2',img2)
+        cv2.flip(img2, flipCode=1)
+        cv2.imshow('img2',img2)
 
-        k = cv2.waitKey(60) & 0xff
-        if k == 27:
+        key = cv2.waitKey(1)
+        if key & 0xFF == ord('s'):
+            tracking = True
+            roi_hist = startTracking(frame,r,h,c,w)
+        elif key & 0xFF == 27:
             break
-        #else:
-            #cv2.imwrite(chr(k)+".jpg",img2)
-
     else:
         break
 
