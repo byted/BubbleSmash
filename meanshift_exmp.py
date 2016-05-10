@@ -2,12 +2,13 @@ import numpy as np
 import cv2
 
 cap = cv2.VideoCapture(0)
+cap.set(5, 1)
 
 cap_width = cap.get(3)
 cap_height = cap.get(4)
 
-roi_width = 110
-roi_height = 175
+roi_width = 80
+roi_height = 120
 
 # take first frame of the video
 ret,frame = cap.read()
@@ -54,12 +55,17 @@ while(1):
             print "dst:",dst
             print "track_window:",track_window
             print "term_crit:",term_crit
-            ret, track_window = cv2.meanShift(dst, track_window, term_crit)
+            ret, track_window = cv2.CamShift(dst, track_window, term_crit)
+
+            pts = cv2.boxPoints(ret)
+            pts = np.int0(pts)
+            img2 = cv2.polylines(frame, [pts], True, 255, 2)
+        else:
+            x,y,w,h = track_window
+            img2 = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
 
         # Draw it on image
-        x,y,w,h = track_window
-        img2 = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
-        cv2.flip(img2, flipCode=1)
+        img2 = cv2.flip(img2, flipCode=1)
         cv2.imshow('img2',img2)
 
         key = cv2.waitKey(1)
