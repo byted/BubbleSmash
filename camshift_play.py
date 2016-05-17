@@ -10,7 +10,9 @@ class Circle(object):
         self.x_pos = random.randint(0, frame_width)
         self.speed = random.randint(5, 25)
         self.visible = True
+        self.popped = False
         self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+        self.radius = 30
 
     def down(self, yLimit):
         self.y_pos += self.speed
@@ -19,7 +21,7 @@ class Circle(object):
             self.visible = False
 
     def draw(self, video_img):
-        cv2.circle(video_img, (self.x_pos, self.y_pos), 10, self.color, -1)
+        cv2.circle(video_img, (self.x_pos, self.y_pos), self.radius, self.color, -1)
 
     def move(self, video_img):
         ## get frame height
@@ -31,6 +33,8 @@ class Circle(object):
 
 
 NUM_OF_CIRCLES = 1
+SCORE = 0
+MISSES = 0
 
 cap = cv2.VideoCapture(0)
 cap.set(5, 1)
@@ -83,17 +87,62 @@ def inTriangle(p1, a, b, c):
     ## -> if yes, p1 is inside it
     return sameSide(p1, a, b, c) and sameSide(p1, b, a, c) and sameSide(p1, c, a, b)
 
-## checks if circle lies in rectangle 'r'
-def circCovered(circle, r):
-    ## check the circle's center
-    circCenter = (circle.x_pos, circle.y_pos)
-
+## checks if point p is covered in rectangle 'r'
+def pointCovered(p, r):
     ## split rectangle into two arbitrary triangles and check
     ## if circle lies in one of them
-    firstTri = inTriangle(circCenter, r[0], r[1], r[2])
-    secondTri = inTriangle(circCenter, r[0], r[3], r[2])
-
+    firstTri = inTriangle(p, r[0], r[1], r[2])
+    secondTri = inTriangle(p, r[0], r[3], r[2])
+    
     return firstTri or secondTri
+
+## generate points in circle for better collision detection
+def getCircPoints(center, radius):
+    points = []
+    cx = center[0]
+    cy = center[1]
+    radius *= 1.1
+    RCONST = 0.75
+    ## move right
+    points.append((cx+radius, cy))
+    ## move down
+    points.append((cx, cy+radius))
+    ## move left
+    points.append((cx-radius, cy))
+    ## move up
+    points.append((cx, cy-radius))
+    ## move right down
+    points.append((cx+radius*RCONST, cy+radius*RCONST))
+    ## move left down
+    points.append((cx-radius*RCONST, cy+radius*RCONST))
+    ## move left up
+    points.append((cx-radius*RCONST, cy-radius*RCONST))
+    ## move right up
+    points.append((cx+radius*RCONST, cy-radius*RCONST))
+
+    return points
+    
+
+## checks if circle lies in rectangle 'r'
+def circCovered(circle, r):
+    ## get the circle's center
+    circCenter = (circle.x_pos, circle.y_pos)
+
+    ## create list of points from circle to check
+    for p in getCircPoints(circCenter, circle.radius):
+        if pointCovered(p, r):
+            return True
+    return False
+
+## determine width of text
+def getTWidth(num):
+    if num < 10:
+        return 40
+    if num < 100:
+        return 80
+    if num < 1000:
+        return 120
+    return 160
 
 def get_faces(img):
     cascPath = sys.argv[1]
@@ -121,21 +170,19 @@ term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 circles = [Circle(cap_width) for _ in xrange(NUM_OF_CIRCLES)]
 
 tracking = False
-balls = True
 roi_hist = None
-bubbles = True
 
 while(1):
     ret, frame = cap.read()
     if ret == True:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         ## get width of frame
-        _,width,_ = frame.shape
+        height,width,_ = frame.shape
 
         if tracking:
             cv2.destroyWindow('hsv_start')
             for (x, y, w, h) in get_faces(frame):
-	        cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
+                cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
 
             ## apply camshift to get the new location
             dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
@@ -154,21 +201,24 @@ while(1):
             hsv2 = cv2.flip(hsv, flipCode=1)
             cv2.imshow('hsv', hsv2)
 
-            if bubbles:
-                #print "--------------"
-                #print "rect:",rect
-                ## bring 4 rectangle points into correct format
-                ## (pts has reversed x-axis?!)
-                corPTS = [p.tolist() for p in pts]
-                corPTS = [(p[0], p[1]) for p in corPTS]  # [(width-p[0], p[1]) for p in corPTS]
-                #print "pts:",pts
-                #print "corPTS:",corPTS
-                found = False
-                for circ in circles:
-                    if circCovered(circ, corPTS):
-                        circ.visible = False
-                        print "covered a circle!"
-                #print "--------------"
+            ## bubble fun
+            ## ~~~~~~~~~
+            #print "--------------"
+            #print "rect:",rect
+            ## bring 4 rectangle points into correct format
+            ## (pts has reversed x-axis?!)
+            corPTS = [p.tolist() for p in pts]
+            corPTS = [(p[0], p[1]) for p in corPTS]  # [(width-p[0], p[1]) for p in corPTS]
+            #print "pts:",pts
+            #print "corPTS:",corPTS
+            found = False
+            for circ in circles:
+                if circCovered(circ, corPTS):
+                    circ.visible = False
+                    circ.popped = True
+                    SCORE += 1
+                    #print "covered a circle!"
+            #print "--------------"
         else:
             ## only draw static rectangle at starting position
             x,y,w,h = track_window
@@ -188,11 +238,21 @@ while(1):
                 ## replace leaving circle with a fresh one
                 circles.append(Circle(width))
                 circles.remove(circ)
+                if not circ.popped:
+                    MISSES += 1
 
         #print "circle count:",len(circles)
 
         ## flip image
         img2 = cv2.flip(img2, flipCode=1)
+        
+        ## print score & misses
+        #stw = getTWidth(SCORE)
+        mtw = getTWidth(MISSES)
+        
+        cv2.putText(img2, str(SCORE), (20,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,0))
+        cv2.putText(img2, str(MISSES), (width-mtw,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
+        
         # Draw it on image
         cv2.imshow('img2',img2)
 
