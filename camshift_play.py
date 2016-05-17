@@ -133,11 +133,10 @@ while(1):
         _,width,_ = frame.shape
 
         if tracking:
+            cv2.destroyWindow('hsv_start')
             for (x, y, w, h) in get_faces(frame):
 	        cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
 
-            hsv2 = cv2.flip(hsv, flipCode=1)
-            cv2.imshow('hsv', hsv2)
             ## apply camshift to get the new location
             dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
             #print "dst:",dst
@@ -149,6 +148,11 @@ while(1):
             pts = np.int0(pts)
 
             img2 = cv2.polylines(frame, [pts], True, 255, 2)
+
+            # second hsv image
+            hsv2 = cv2.polylines(hsv, [pts], True, 255, 2)
+            hsv2 = cv2.flip(hsv, flipCode=1)
+            cv2.imshow('hsv', hsv2)
 
             if bubbles:
                 #print "--------------"
@@ -169,6 +173,10 @@ while(1):
             ## only draw static rectangle at starting position
             x,y,w,h = track_window
             img2 = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
+
+            hsv2 = cv2.flip(hsv, flipCode=1)
+            cv2.imshow('hsv_start', hsv2)
+
 
         # for (x, y, w, h) in get_faces(frame):
 	    # cv2.rectangle(img2, (x, y), (x+w, y+h), (0, 0, 0), -1)
