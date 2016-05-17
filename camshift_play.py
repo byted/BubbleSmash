@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import random
+import sys
 
 ## CIRCLES
 class Circle(object):
@@ -23,14 +24,14 @@ class Circle(object):
     def move(self, video_img):
         ## get frame height
         height,_,_ = video_img.shape
-        
+
         self.down(height)
         if self.visible:
             self.draw(video_img)
 
 
 NUM_OF_CIRCLES = 1
-            
+
 cap = cv2.VideoCapture(0)
 cap.set(5, 1)
 
@@ -91,9 +92,22 @@ def circCovered(circle, r):
     ## if circle lies in one of them
     firstTri = inTriangle(circCenter, r[0], r[1], r[2])
     secondTri = inTriangle(circCenter, r[0], r[3], r[2])
-    
+
     return firstTri or secondTri
-    
+
+def get_faces(img):
+    cascPath = sys.argv[1]
+    faceCascade = cv2.CascadeClassifier(cascPath)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = faceCascade.detectMultiScale(
+	gray,
+	scaleFactor=1.1,
+	minNeighbors=5,
+	minSize=(30, 30),
+	flags=0
+    )
+    return faces
+
 # set up the ROI for tracking
 #roi = frame[r:r+h, c:c+w]
 #hsv_roi =  cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -113,13 +127,17 @@ bubbles = True
 
 while(1):
     ret, frame = cap.read()
-
     if ret == True:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         ## get width of frame
         _,width,_ = frame.shape
-        
+
         if tracking:
+            for (x, y, w, h) in get_faces(frame):
+	        cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
+
+            hsv2 = cv2.flip(hsv, flipCode=1)
+            cv2.imshow('hsv', hsv2)
             ## apply camshift to get the new location
             dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
             #print "dst:",dst
@@ -127,10 +145,9 @@ while(1):
             #print "term_crit:",term_crit
             rect, track_window = cv2.CamShift(dst, track_window, term_crit)
 
-
             pts = cv2.boxPoints(rect)
             pts = np.int0(pts)
-            
+
             img2 = cv2.polylines(frame, [pts], True, 255, 2)
 
             if bubbles:
@@ -139,7 +156,7 @@ while(1):
                 ## bring 4 rectangle points into correct format
                 ## (pts has reversed x-axis?!)
                 corPTS = [p.tolist() for p in pts]
-                corPTS = [(width-p[0], p[1]) for p in corPTS]
+                corPTS = [(p[0], p[1]) for p in corPTS]  # [(width-p[0], p[1]) for p in corPTS]
                 #print "pts:",pts
                 #print "corPTS:",corPTS
                 found = False
@@ -153,6 +170,8 @@ while(1):
             x,y,w,h = track_window
             img2 = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
 
+        # for (x, y, w, h) in get_faces(frame):
+	    # cv2.rectangle(img2, (x, y), (x+w, y+h), (0, 0, 0), -1)
 
         ## iterate through circles
         for circ in circles:
@@ -161,9 +180,9 @@ while(1):
                 ## replace leaving circle with a fresh one
                 circles.append(Circle(width))
                 circles.remove(circ)
-                
+
         #print "circle count:",len(circles)
-                
+
         ## flip image
         img2 = cv2.flip(img2, flipCode=1)
         # Draw it on image
