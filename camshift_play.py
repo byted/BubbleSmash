@@ -3,16 +3,44 @@ import cv2
 import random
 import sys
 
+LEVEL = 1
+#LSTAGES = [0, 25, 75, 175, 300, 500]
+LSTAGES = [0, 10, 20, 30, 40, 50]
+
+NUM_OF_CIRCLES = 5
+SCORE = 0
+MISSES = 0
+HEARTS = 4
+
 ## CIRCLES
 class Circle(object):
     def __init__(self, frame_width):
         self.y_pos = -random.randint(0, 100)  # don't let them start all at once
         self.x_pos = random.randint(0, frame_width)
-        self.speed = random.randint(5, 25)
         self.visible = True
         self.popped = False
-        self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-        self.radius = 30
+
+        ## adjust color to level
+        if LEVEL < 4:
+            self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+        else:
+            self.color = (75,75,75)
+        
+        ## adjust speed to level
+        if LEVEL == 1:
+            self.speed = random.randint(5, 10)
+        elif LEVEL < 4:
+            self.speed = random.randint(10, 15)
+        else:
+            self.speed = random.randint(12, 25)
+
+        ## adjust radius to level
+        if LEVEL == 1:
+            self.radius = 30
+        elif LEVEL < 3:
+            self.radius = 23
+        else:
+            self.radius = 15
 
     def down(self, yLimit):
         self.y_pos += self.speed
@@ -31,11 +59,14 @@ class Circle(object):
         if self.visible:
             self.draw(video_img)
 
+        
 
-NUM_OF_CIRCLES = 1
-SCORE = 0
-MISSES = 0
+WIN = False
+LOSS = False
 
+##cascPath = sys.argv[1]
+cascPath = "haarcascade_frontalface_default.xml"
+    
 cap = cv2.VideoCapture(0)
 cap.set(5, 1)
 
@@ -144,8 +175,7 @@ def getTWidth(num):
         return 120
     return 160
 
-def get_faces(img):
-    cascPath = sys.argv[1]
+def get_faces(img, cascPath):
     faceCascade = cv2.CascadeClassifier(cascPath)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = faceCascade.detectMultiScale(
@@ -181,7 +211,7 @@ while(1):
 
         if tracking:
             cv2.destroyWindow('hsv_start')
-            for (x, y, w, h) in get_faces(frame):
+            for (x, y, w, h) in get_faces(frame, cascPath):
                 cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
 
             ## apply camshift to get the new location
@@ -212,12 +242,39 @@ while(1):
             #print "pts:",pts
             #print "corPTS:",corPTS
             found = False
+
+            
+            ## iterate through circles
+            for circ in circles:
+                circ.move(img2)
+                if not circ.visible:
+                    ## replace leaving circle with a fresh one
+                    circles.append(Circle(width))
+                    circles.remove(circ)
+                    if not circ.popped:
+                        MISSES += 1
+                        if MISSES == HEARTS:
+                            LOSS = True
+
+            #print "circle count:",len(circles)
+
+                    
             for circ in circles:
                 if circCovered(circ, corPTS):
+                    #print "covered a circle!"
+                    ## Event: Scored a bubble
+                    # remove bubble
                     circ.visible = False
                     circ.popped = True
+                    # update score
                     SCORE += 1
-                    #print "covered a circle!"
+                    # upgrade level
+                    if SCORE == LSTAGES[LEVEL]:
+                        LEVEL += 1
+                        if LEVEL == len(LSTAGES):
+                            print "you win!"
+                            WIN = True
+                            
             #print "--------------"
         else:
             ## only draw static rectangle at starting position
@@ -231,30 +288,79 @@ while(1):
         # for (x, y, w, h) in get_faces(frame):
 	    # cv2.rectangle(img2, (x, y), (x+w, y+h), (0, 0, 0), -1)
 
-        ## iterate through circles
-        for circ in circles:
-            circ.move(img2)
-            if not circ.visible:
-                ## replace leaving circle with a fresh one
-                circles.append(Circle(width))
-                circles.remove(circ)
-                if not circ.popped:
-                    MISSES += 1
 
-        #print "circle count:",len(circles)
+        ## flip image (IF LEVEL IS LOW)
+        if LEVEL < 5:
+            img2 = cv2.flip(img2, flipCode=1)
 
-        ## flip image
-        img2 = cv2.flip(img2, flipCode=1)
+        ## CHECK END CONDITIONS
+        #if SCORE > 1:
+        #    WIN = True
+        if WIN:
+            cv2.putText(img2, "You WIN! \o/", (width/5,height/2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,255))
+        elif LOSS:
+            cv2.putText(img2, "You LOSE! :(", (width/4,height/2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
+            
+
+        ## CHANGE COLOR
+        if LEVEL >= 4:
+            ## apply gray filter
+            img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
+
+            
+        ## DRAWING FROM HERE
+
+        ## PREPARE HEARTS
+        ## PREPARE HEART IMAGE
         
+        ## size of a heart
+        heartSize = 50
+        ## show hearts/lives
+        ## load image
+        heartIMG = cv2.imread('images/heart.png', -1)
+        ## create mask (why?)
+        heart_mask = heartIMG[:,:,3]
+        ## create inverted mask (why?)
+        heart_mask_inv = cv2.bitwise_not(heart_mask)
+        ## convert img to BGR
+        heartIMG = heartIMG[:,:,0:3]
+        heart = cv2.resize(heartIMG, (heartSize, heartSize), interpolation=cv2.INTER_AREA)
+        heartM =cv2.resize(heart_mask, (heartSize, heartSize), interpolation=cv2.INTER_AREA)
+        heartM_inv = cv2.resize(heart_mask_inv, (heartSize, heartSize), interpolation=cv2.INTER_AREA)
+
+        ## distance to image boundary
+        offset = 10
+        
+        ## DRAW HEARTS
+        for i in range(HEARTS-MISSES): ## how many left?
+            ## DRAW HEART
+            width_offset = (i+1)*offset + i*heartSize
+            ## take ROI from background
+            roiH = img2[height-(heartSize+offset):height-offset, width-(heartSize+width_offset):width-width_offset]
+            roi_bgH = cv2.bitwise_and(roiH, roiH, mask = heartM_inv)
+            roi_fgH = cv2.bitwise_and(heart, heart, mask = heartM)
+            dstH = cv2.add(roi_bgH, roi_fgH)
+            img2[height-(heartSize+offset):height-offset, width-(heartSize+width_offset):width-width_offset] = dstH
+
+        
+
+        ## TEXT: SCORES/LEVELS
         ## print score & misses
         #stw = getTWidth(SCORE)
         mtw = getTWidth(MISSES)
+        levelMSG = "Level "+str(LEVEL)
         
         cv2.putText(img2, str(SCORE), (20,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,0))
-        cv2.putText(img2, str(MISSES), (width-mtw,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
-        
+        cv2.putText(img2, levelMSG, ((width/2)-170, height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,185,255))
+        #cv2.putText(img2, str(MISSES), (width-mtw,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
+
         # Draw it on image
         cv2.imshow('img2',img2)
+
+        if WIN or LOSS:
+            cv2.waitKey(15000)
+            break
 
         key = cv2.waitKey(30)
         if key & 0xFF == ord('s'):
