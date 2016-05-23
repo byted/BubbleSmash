@@ -25,7 +25,7 @@ class Circle(object):
             self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
         else:
             self.color = (75,75,75)
-        
+
         ## adjust speed to level
         if LEVEL == 1:
             self.speed = random.randint(5, 10)
@@ -59,14 +59,14 @@ class Circle(object):
         if self.visible:
             self.draw(video_img)
 
-        
+
 
 WIN = False
 LOSS = False
 
 ##cascPath = sys.argv[1]
 cascPath = "haarcascade_frontalface_default.xml"
-    
+
 cap = cv2.VideoCapture(0)
 cap.set(5, 1)
 
@@ -124,7 +124,7 @@ def pointCovered(p, r):
     ## if circle lies in one of them
     firstTri = inTriangle(p, r[0], r[1], r[2])
     secondTri = inTriangle(p, r[0], r[3], r[2])
-    
+
     return firstTri or secondTri
 
 ## generate points in circle for better collision detection
@@ -152,7 +152,7 @@ def getCircPoints(center, radius):
     points.append((cx+radius*RCONST, cy-radius*RCONST))
 
     return points
-    
+
 
 ## checks if circle lies in rectangle 'r'
 def circCovered(circle, r):
@@ -212,7 +212,7 @@ while(1):
         if tracking:
             cv2.destroyWindow('hsv_start')
             for (x, y, w, h) in get_faces(frame, cascPath):
-                cv2.rectangle(hsv, (x, y), (x+w, y+h), (0, 0, 0), -1)
+                cv2.rectangle(hsv, (x, y), (x + w, y + int(h * 1.3)), (0, 0, 0), -1)
 
             ## apply camshift to get the new location
             dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
@@ -243,7 +243,7 @@ while(1):
             #print "corPTS:",corPTS
             found = False
 
-            
+
             ## iterate through circles
             for circ in circles:
                 circ.move(img2)
@@ -258,7 +258,7 @@ while(1):
 
             #print "circle count:",len(circles)
 
-                    
+
             for circ in circles:
                 if circCovered(circ, corPTS):
                     #print "covered a circle!"
@@ -274,7 +274,7 @@ while(1):
                         if LEVEL == len(LSTAGES):
                             print "you win!"
                             WIN = True
-                            
+
             #print "--------------"
         else:
             ## only draw static rectangle at starting position
@@ -300,7 +300,7 @@ while(1):
             cv2.putText(img2, "You WIN! \o/", (width/5,height/2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,255))
         elif LOSS:
             cv2.putText(img2, "You LOSE! :(", (width/4,height/2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
-            
+
 
         ## CHANGE COLOR
         if LEVEL >= 4:
@@ -308,12 +308,12 @@ while(1):
             img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
             img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
 
-            
+
         ## DRAWING FROM HERE
 
         ## PREPARE HEARTS
         ## PREPARE HEART IMAGE
-        
+
         ## size of a heart
         heartSize = 50
         ## show hearts/lives
@@ -331,7 +331,7 @@ while(1):
 
         ## distance to image boundary
         offset = 10
-        
+
         ## DRAW HEARTS
         for i in range(HEARTS-MISSES): ## how many left?
             ## DRAW HEART
@@ -343,14 +343,14 @@ while(1):
             dstH = cv2.add(roi_bgH, roi_fgH)
             img2[height-(heartSize+offset):height-offset, width-(heartSize+width_offset):width-width_offset] = dstH
 
-        
+
 
         ## TEXT: SCORES/LEVELS
         ## print score & misses
         #stw = getTWidth(SCORE)
         mtw = getTWidth(MISSES)
         levelMSG = "Level "+str(LEVEL)
-        
+
         cv2.putText(img2, str(SCORE), (20,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,0))
         cv2.putText(img2, levelMSG, ((width/2)-170, height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,185,255))
         #cv2.putText(img2, str(MISSES), (width-mtw,height-30), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255))
